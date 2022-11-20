@@ -1,43 +1,21 @@
-# FROM golang:1.19.3-alpine AS build
+FROM golang:1.19.3-alpine AS BuildStage
 
-# WORKDIR /app
+ARG WATCH_NAMESPACES
+WORKDIR /ng
 
-# COPY go.mod ./
-# COPY go.sum ./
-# RUN go mod download
+COPY . .
 
-# COPY *.go ./
+RUN go mod download
+RUN go build -o /app main.go
 
-# ARG WATCH_NAMESPACES
+# Deploy Stage
 
-# RUN go build -o /docker-gs-ping
-
-# ## Deploy
-# FROM gcr.io/distroless/base-debian10
-
-# WORKDIR /
-
-# COPY --from=build /docker-gs-ping /docker-gs-ping
-
-# ENV WATCH_NAMESPACES=${WATCH_NAMESPACES:-ng}
+FROM alpine:latest
+WORKDIR /
+COPY --from=BuildStage /app /app
 
 # USER nonroot:nonroot
 
-# ENTRYPOINT ["/docker-gs-ping"]
+ENV WATCH_NAMESPACES=${WATCH_NAMESPACES:-ng}
 
-
-FROM golang:1.19.3-alpine
-
-WORKDIR /app
-
-COPY go.mod ./
-COPY go.sum ./
-RUN go mod download
-
-COPY *.go ./
-
-RUN go build -o /app1
-
-# EXPOSE 8080
-
-CMD [ "/app1" ]
+ENTRYPOINT ["/app"]

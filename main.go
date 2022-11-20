@@ -1,39 +1,52 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"path/filepath"
+	"log"
+	"os"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 	"k8s.io/klog/v2"
 )
 
+var namespace_to_watch = "ng"
+
 func main() {
-	// parse the .kubeconfig file
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+
+	kubeConfig := os.Getenv("KUBECONFIG")
+
+	var clusterConfig *rest.Config
+	var err error
+	if kubeConfig != "" {
+		clusterConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
 	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		log.Println("In-Cluster Configs Detected...")
+		clusterConfig, err = rest.InClusterConfig()
 	}
-	flag.Parse()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// // parse the .kubeconfig file
+	// var kubeconfig *string
+	// if home := homedir.HomeDir(); home != "" {
+	// 	kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	// } else {
+	// 	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	// }
+	// flag.Parse()
 
 	// create config from the kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err)
-	}
 
 	// create the clientset
-	clientSet, err := kubernetes.NewForConfig(config)
+	clientSet, err := kubernetes.NewForConfig(clusterConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +56,7 @@ func main() {
 	defer close(stopper)
 
 	// create shared informers for resources in all known API group versions with a reSync period and namespace
-	factory := informers.NewSharedInformerFactoryWithOptions(clientSet, 10*time.Second, informers.WithNamespace("demo"))
+	factory := informers.NewSharedInformerFactoryWithOptions(clientSet, 10*time.Second, informers.WithNamespace(namespace_to_watch))
 	podInformer := factory.Core().V1().Pods().Informer()
 
 	defer runtime.HandleCrash()
