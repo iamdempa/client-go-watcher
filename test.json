@@ -1,0 +1,15 @@
+{
+    "podName": {
+        "container_count": 2,
+        "containers": [
+            {
+                "container1Name": "container1",
+                "container1Image": "container1image"
+            },
+            {
+                "container2Name": "container2",
+                "container2Image": "container2image"
+            }
+        ]
+    }
+}

@@ -1,20 +1,34 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ng
+  name: app1
 ---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: service-mongo
+  namespace: app1
+spec:
+  type: ExternalName
+  externalName: mongo.ng-mongo.svc.cluster.local
+  ports:
+  - port: 27017
+
+---
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ng-service-account
-  namespace: ng
+  namespace: app1
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: ng-cluster-role
-  namespace: ng
+  namespace: app1
 rules:
 
   - apiGroups: ["", "apps/v1"]
@@ -26,7 +40,7 @@ kind: ClusterRoleBinding
 metadata:
   name: ng-cluster-role-binding
 subjects:
-- namespace: ng
+- namespace: app1
   kind: ServiceAccount
   name: ng-service-account
 roleRef:
@@ -40,10 +54,11 @@ metadata:
   creationTimestamp: null
   labels:
     app: app1
+    do: notmonitor
   name: app1
-  namespace: ng
+  namespace: app1
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: app1
@@ -53,6 +68,7 @@ spec:
       creationTimestamp: null
       labels:
         app: app1
+        do: notmonitor
     spec:
       serviceAccountName: ng-service-account
       containers:
