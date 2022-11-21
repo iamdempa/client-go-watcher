@@ -118,7 +118,6 @@ func watch_for_events(namespace string) {
 
 	var event struct {
 		Doc YourDocument `bson:"fullDocument"`
-		// string operation_type `bson:"operationType"`
 	}
 
 	// matchPipeline := bson.D{{"$match", bson.D{{"operationType", "insert"}}}}
@@ -140,22 +139,16 @@ func watch_for_events(namespace string) {
 			continue
 		}
 
-		fmt.Printf("Actual action is: %s\n", changeStream.Current.Lookup("operationType"))
+		// fmt.Printf("Actual action is: %s\n", changeStream.Current.Lookup("operationType"))
+		if event.Doc.Namespace != namespace {
 
-		if event.Doc.Namespace == namespace {
-
-			fmt.Println("Action is: " + event.Doc.Action)
-			fmt.Println("===================")
-
-			if event.Doc.Action == "added" {
-				klog.Infof("From Namespace [%s]: POD CREATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+			if changeStream.Current.Lookup("operationType").String() == "\"insert\"" {
+				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD CREATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
 			} else if event.Doc.Action == "updated" {
-				klog.Infof("From Namespace [%s]: POD UPDATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
-			} else if event.Doc.Action == "deleted" {
-				klog.Infof("From Namespace [%s]: POD DELETED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD UPDATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+			} else if changeStream.Current.Lookup("operationType").String() == "\"delete\"" {
+				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD DELETED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
 			}
-		} else {
-			fmt.Println("000000")
 		}
 	}
 
@@ -235,7 +228,7 @@ func onAdd(obj interface{}) {
 	}
 	if !doNotMonitor {
 		fmt.Printf("\n\n")
-		klog.Infof("POD CREATED: %s/%s\n\n", pod.Namespace, pod.Name)
+		klog.Infof("🟢 POD CREATED: %s/%s\n\n", pod.Namespace, pod.Name)
 
 		var containers []string
 		var container_images []string
@@ -269,7 +262,7 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 
 	if !doNotMonitor {
 		klog.Infof(
-			"POD UPDATED. %s/%s %s",
+			"🟠 POD UPDATED. %s/%s %s",
 			oldPod.Namespace, oldPod.Name, oldPod.Status.Phase,
 		)
 
@@ -284,7 +277,7 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 		}
 
 		klog.Infof(
-			"POD UPDATED. %s/%s %s",
+			"🟠 POD UPDATED. %s/%s %s",
 			newPod.Namespace, newPod.Name, newPod.Status.Phase,
 		)
 
@@ -357,7 +350,7 @@ func onDelete(obj interface{}) {
 
 	if !doNotMonitor {
 		fmt.Printf("\n\n")
-		klog.Infof("POD DELETED: %s/%s\n\n", pod.Namespace, pod.Name)
+		klog.Infof("🔴 POD DELETED: %s/%s\n\n", pod.Namespace, pod.Name)
 
 		var containers []string
 		var container_images []string
