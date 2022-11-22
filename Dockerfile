@@ -1,6 +1,8 @@
 FROM golang:1.19.3-alpine AS BuildStage
 
-ARG WATCH_NAMESPACES
+ARG NAMESPACE_TO_WATCH
+ARG OTHER_NAMESPACE_TO_WATCH
+ARG KUBECONFIG
 WORKDIR /ng
 
 COPY . .
@@ -9,13 +11,12 @@ RUN go mod download
 RUN go build -o /app main.go
 
 # Deploy Stage
-
 FROM alpine:latest
 WORKDIR /
 COPY --from=BuildStage /app /app
 
-# USER nonroot:nonroot
-
-ENV WATCH_NAMESPACES=${WATCH_NAMESPACES:-ng}
+ENV NAMESPACE_TO_WATCH=${NAMESPACE_TO_WATCH:-default}
+ENV OTHER_NAMESPACE_TO_WATCH=${OTHER_NAMESPACE_TO_WATCH:-default}
+ENV KUBECONFIG=${KUBECONFIG}
 
 ENTRYPOINT ["/app"]

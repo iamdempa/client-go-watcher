@@ -15,5 +15,11 @@ docker exec -it mongo1 mongosh --eval "rs.initiate({
 })"
 
 
+
+
+# ----------
+kubectl exec -it mongo-0 mongosh --eval "rs.initiate({_id: \"rs0\",members: [{_id: 0, host: \"mongo-0\"},{_id: 1, host: \"mongo-1\"},]})"
+
+mongosh rs.initiate({_id: "rs0",members: [{_id: 0, host: "localhost"}]})
 # connect using 
 # mongodb://localhost:27017

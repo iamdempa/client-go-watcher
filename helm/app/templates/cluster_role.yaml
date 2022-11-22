@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.common_name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: ["", "apps/v1"]
+    resources: ["pods", "deployments"]
+    verbs: ["get", "watch", "list"]

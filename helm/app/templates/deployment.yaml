@@ -1,61 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "app.fullname" . }}
+  creationTimestamp: null
   labels:
-    {{- include "app.labels" . | nindent 4 }}
+    app: {{ .Values.common_name }}
+    do: {{ .Values.deployment.notmonitor }}
+  name: {{ .Values.common_name }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
-      {{- include "app.selectorLabels" . | nindent 6 }}
+      app: {{ .Values.common_name }}
+  strategy: {}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      creationTimestamp: null
       labels:
-        {{- include "app.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.common_name }}
+        do: notmonitor
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      serviceAccountName: {{ include "app.serviceAccountName" . }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      serviceAccountName: {{ .Values.common_name }}
       containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+        - name: MONGO_SERVICE_HOSTNAME
+          value: "{{ .Values.deployment.env_mongo | default "service-mongo" }}"
+        - name: NAMESPACE_TO_WATCH
+          value: "{{ .Values.common_name }}"
+        - name: OTHER_NAMESPACE_TO_WATCH
+          value: "{{ .Values.other_namespace_to_watch }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        name: {{ .Values.common_name }}
+        resources: 
+          {{- toYaml .Values.resources | nindent 10 }}        

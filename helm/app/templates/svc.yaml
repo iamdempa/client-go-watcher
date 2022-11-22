@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Values.common_name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: {{ .Values.service.type }}
+  externalName: {{ .Values.service.externalName }}
+  ports:
+  - port: {{ .Values.service.port }}

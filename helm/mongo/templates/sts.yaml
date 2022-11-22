@@ -1,0 +1,38 @@
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.selector }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  serviceName: "{{ .Values.selector }}"
+  replicas: 1
+  selector:
+    matchLabels:
+      role: {{ .Values.selector }}
+  template:
+    metadata:
+      labels:
+        role: {{ .Values.selector }}
+    spec:  
+      containers:
+      - name: {{ .Values.selector }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"    
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+          - containerPort: 27017  
+        command:
+          - mongod
+        args:
+          - "--bind_ip_all"
+          - "--replSet=rs0"
+          - "--port=27017"          
+
+      - name: mongo-sidecar
+        image: morphy/k8s-mongo-sidecar
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: KUBERNETES_POD_LABELS
+            value: "role=mongo,environment=test"
+          - name: KUBERNETES_SERVICE_NAME
+            value: "{{ .Values.selector }}"

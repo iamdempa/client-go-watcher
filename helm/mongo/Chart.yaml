@@ -1,6 +1,6 @@
 apiVersion: v2
-name: app
-description: A Helm chart for Kubernetes Watcher - Jananath Banuka Jayarathna
+name: mongo
+description: A Helm chart for Kubernetes MongoDB Test - Jananath Banuka Jayarathna
 
 # A chart can be either an 'application' or a 'library' chart.
 #

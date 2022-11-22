@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.selector }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.selector }}
+spec:
+  ports:
+  - port: {{ .Values.service.port }}
+    targetPort: {{ .Values.service.port }}
+    name: {{ .Values.selector }}
+  clusterIP: {{ .Values.service.type }}
+  selector:
+    role: {{ .Values.selector }}

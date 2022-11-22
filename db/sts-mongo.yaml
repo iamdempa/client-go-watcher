@@ -15,7 +15,6 @@ provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 
 ---
-
 apiVersion: v1
 kind: Secret
 metadata:
@@ -27,8 +26,6 @@ data:
   mongodb-root-user:  "cm9vdA=="
 
 ---
-
-
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -36,7 +33,7 @@ metadata:
   namespace: ng-mongo
 spec:
   capacity:
-    storage: 10Gi
+    storage: 50Gi
   volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
@@ -54,7 +51,6 @@ spec:
                 - minikube 
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -89,44 +85,39 @@ spec:
       labels:
         role: mongo
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - minikube   
       containers:
       - name: mongo
-        image: mongo             
+        image: mongo:5.0.3      
+        imagePullPolicy: Never   
         ports:
-          - containerPort: 27017
-        volumeMounts:
+          - containerPort: 27017  
+        volumeMounts: 
           - name: mongo-persistent-storage
             mountPath: /data/db
-        env:
-          # - name: MONGO_INITDB_ROOT_USERNAME
-          #   value: test
-          # - name: MONGO_INITDB_ROOT_PASSWORD
-          #   value: test
-          # - name: MONGO_INITDB_DATABASE
-          #   value: ng-db          
-          # - name: MONGO_INITDB_ROOT_USERNAME
-          #   value: "test"
-            # valueFrom:
-            #   secretKeyRef:
-            #     name: mongo-creds
-            #     key: mongodb-root-user
-
-          # - name: MONGO_INITDB_ROOT_PASSWORD
-          #   value: "test"   
-            # valueFrom:
-            #   secretKeyRef:
-            #     name: mongo-creds
-            #     key: mongodb-root-password    
-
-          # - name: MONGO_INITDB_DATABASE
-          #   value: "ng-db"      
+        command:
+          - mongod
+        args:
+          - "--bind_ip_all"
+          - "--replSet=rs0"
+          - "--port=27017"          
 
       - name: mongo-sidecar
-        image: cvallance/mongo-k8s-sidecar
+        image: morphy/k8s-mongo-sidecar
+        imagePullPolicy: Never
         env:
-          # https://github.com/cvallance/mongo-k8s-sidecar#settings
-          - name: MONGO_SIDECAR_POD_LABELS
-            value: "role=mongo"
+          - name: KUBERNETES_POD_LABELS
+            value: "role=mongo,environment=test"
+          - name: KUBERNETES_SERVICE_NAME
+            value: "mongo"
   volumeClaimTemplates:
   - metadata:
       name: mongo-persistent-storage

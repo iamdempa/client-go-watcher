@@ -23,9 +23,9 @@ import (
 )
 
 // Connection URI
-// const mongo_uri = "mongodb://service-mongo"
-// const mongo_uri = "mongodb://localhost:27017"
-const mongo_uri = "mongodb://localhost:27017/?replicaSet=myReplicaSet&authSource=admin"
+const mongo_uri = "mongodb://app1"
+
+// const mongo_uri = "mongodb://localhost:27017/?replicaSet=myReplicaSet&authSource=admin"
 
 const mongo_db = "ng-db"
 
@@ -64,20 +64,6 @@ func mongodb_action(namespace string, pod_name string, container_count int, cont
 
 	coll := mongoConnection.Database(mongo_db).Collection(collection)
 
-	// indexModel := mongo.IndexModel{
-	// 	Keys:    bson.D{{"pod_name", -1}},
-	// 	Options: options.Index().SetUnique(true),
-	// }
-	// _, err := coll.Indexes().CreateOne(context.TODO(), indexModel)
-	// defer func() {
-	// 	if r := recover(); r != nil {
-
-	// 	}
-	// }()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 	doc := bson.D{{"namespace", namespace}, {"pod_name", pod_name}, {"total_container_count", container_count}, {"containers_and_images", containers_and_images}, {"action", action}}
 
 	_, err := coll.InsertOne(context.TODO(), doc)
@@ -102,7 +88,7 @@ func mongodb_delete(pod_name string, collection string) {
 	// fmt.Printf("Deleted Document Count: %v\n", result.DeletedCount)
 }
 
-func watch_for_events(namespace string) {
+func watch_for_events(namespace string, otherNamespace string) {
 
 	type YourDocument struct {
 		ID                  primitive.ObjectID `bson:"_id"`
@@ -113,8 +99,6 @@ func watch_for_events(namespace string) {
 		PodName             string             `bson:"pod_name"`
 		Action              string             `bson:"action"`
 	}
-
-	fmt.Println("Watching Started....")
 
 	var event struct {
 		Doc YourDocument `bson:"fullDocument"`
@@ -158,13 +142,28 @@ func watch_for_events(namespace string) {
 func main() {
 
 	kubeConfig := os.Getenv("KUBECONFIG")
-	var get_ns = os.Getenv("NAMESPACE_TO_WATCH")
-	var namespace_to_watch = ""
+	// var get_ns = os.Getenv("NAMESPACE_TO_WATCH")
+	// var get_other_namespace_to_retrieve_data_from = os.Getenv("OTHER_NAMESPACE_TO_WATCH")
 
-	if get_ns != "" {
-		namespace_to_watch = get_ns
+	var namespace_to_watch string
+	var other_namespace_to_accept string
+
+	value1, present1 := os.LookupEnv("OTHER_NAMESPACE_TO_WATCH")
+	if present1 && value1 != "" {
+		other_namespace_to_accept = value1
 	} else {
-		namespace_to_watch = "app1"
+		other_namespace_to_accept = "default"
+		fmt.Println("No \"OTHER_NAMESPACE_TO_WATCH\" set, hence ready to accept any incoming streams from the \"" + other_namespace_to_accept + "\" namespace Started.... ")
+
+	}
+
+	value2, present2 := os.LookupEnv("NAMESPACE_TO_WATCH")
+	if present2 && value2 != "" {
+		namespace_to_watch = value2
+	} else {
+		namespace_to_watch = "default"
+		fmt.Println("No \"NAMESPACE_TO_WATCH\" set, hence watching the events from the \"" + namespace_to_watch + "\" namespace Started.... ")
+
 	}
 
 	var clusterConfig *rest.Config
@@ -211,7 +210,7 @@ func main() {
 		DeleteFunc: onDelete,
 	})
 
-	watch_for_events(namespace_to_watch)
+	watch_for_events(namespace_to_watch, other_namespace_to_accept)
 
 	// block the main go routine from exiting
 	<-stopper
@@ -296,44 +295,6 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 		mongodb_action(oldPod.Namespace, oldPod.Name, old_pod_container_count, old_containers_and_images, shared_events, "updated")
 		mongodb_action(oldPod.Namespace, newPod.Name, new_pod_container_count, new_containers_and_images, shared_events, "updated")
 
-		// for _, container := range newPod.Spec.Containers {
-		// 	fmt.Println(container.Image)
-		// }
-		// var containers []string
-		// var container_images []string
-
-		// var container_count = 0
-
-		// if oldPod.Status.Phase == "Pending" {
-
-		// 	for _, container := range oldPod.Spec.Containers {
-		// 		container_count++
-		// 		containers = append(containers, container.Name)
-		// 		container_images = append(container_images, container.Image)
-		// 	}
-
-		// 	containers_and_images := [][]string{containers, container_images}
-		// 	mongodb_action(oldPod.Name, container_count, containers_and_images, updated_collection)
-		// 	doNotMonitor = false
-		// 	containers = nil
-		// 	container_images = nil
-
-		// } else if oldPod.Status.Phase == "Running" {
-
-		// 	for _, container := range newPod.Spec.Containers {
-		// 		container_count++
-		// 		containers = append(containers, container.Name)
-		// 		container_images = append(container_images, container.Image)
-		// 	}
-
-		// 	containers_and_images := [][]string{containers, container_images}
-		// 	mongodb_action(newPod.Name, container_count, containers_and_images, added_collection)
-		// 	doNotMonitor = false
-		// 	containers = nil
-		// 	container_images = nil
-
-		// }
-
 	}
 
 }
@@ -366,7 +327,6 @@ func onDelete(obj interface{}) {
 		containers_and_images := [][]string{containers, container_images}
 
 		mongodb_action(pod.Namespace, pod.Name, container_count, containers_and_images, shared_events, "deleted")
-		// mongodb_delete(pod.Name, added_collection)
 	}
 
 }
