@@ -27,23 +27,24 @@ const mongo_db = "ng-db"
 const added_collection = "app1-added-pods"
 const updated_collection = "app1-updated-pods"
 const deleted_collection = "app1-deleted-pods"
-
 const shared_events = "shared_events"
 
+// re-use the same connection without creating new one everytime
 var mongoConnection = mongodb_connection()
 
 func mongodb_connection() *mongo.Client {
 
-	var mongo_host = ""
-	value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
-	if present && value != "" {
-		mongo_host = value
-	} else {
-		mongo_host = "app1"
-	}
+	// var mongo_host = ""
+	// value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
+	// if present && value != "" {
+	// 	mongo_host = value
+	// } else {
+	// 	mongo_host = "app1"
+	// }
 
 	// Connection URI
-	var mongo_uri = "mongodb://" + mongo_host
+	// var mongo_uri = "mongodb://" + mongo_host
+	var mongo_uri = "mongodb://localhost:27017"
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(mongo_uri)
@@ -67,6 +68,7 @@ func mongodb_connection() *mongo.Client {
 	return client
 }
 
+// Function to update the mongodb
 func mongodb_action(namespace string, pod_name string, container_count int, containers_and_images [][]string, collection string, action string) {
 
 	coll := mongoConnection.Database(mongo_db).Collection(collection)
@@ -77,8 +79,6 @@ func mongodb_action(namespace string, pod_name string, container_count int, cont
 	if err != nil {
 		panic(err)
 	}
-
-	// fmt.Printf("Inserted new Pod %s with _id: %v to the Collection %s\n", pod_name, result.InsertedID, collection)
 
 }
 
@@ -92,9 +92,9 @@ func mongodb_delete(pod_name string, collection string) {
 		panic(err)
 	}
 
-	// fmt.Printf("Deleted Document Count: %v\n", result.DeletedCount)
 }
 
+// Function to watcbh for mongodb change streams
 func watch_for_events(namespace string, otherNamespace string) {
 
 	type YourDocument struct {
@@ -110,8 +110,6 @@ func watch_for_events(namespace string, otherNamespace string) {
 	var event struct {
 		Doc YourDocument `bson:"fullDocument"`
 	}
-
-	// matchPipeline := bson.D{{"$match", bson.D{{"operationType", "insert"}}}}
 
 	// open a change stream with an empty pipeline parameter
 	coll := mongoConnection.Database(mongo_db).Collection(shared_events)
@@ -130,15 +128,14 @@ func watch_for_events(namespace string, otherNamespace string) {
 			continue
 		}
 
-		// fmt.Printf("Actual action is: %s\n", changeStream.Current.Lookup("operationType"))
 		if event.Doc.Namespace != namespace {
 
-			if changeStream.Current.Lookup("operationType").String() == "\"insert\"" {
-				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD CREATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+			if changeStream.Current.Lookup("operationType").String() == "\"insert\"" && event.Doc.Action == "added" {
+				klog.Infof("⚪️🟢 NEWS FROM Namespace [%s]: POD CREATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
 			} else if event.Doc.Action == "updated" {
-				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD UPDATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
-			} else if changeStream.Current.Lookup("operationType").String() == "\"delete\"" {
-				klog.Infof("⚪️ NEWS FROM Namespace [%s]: POD DELETED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+				klog.Infof("⚪️🟠 NEWS FROM Namespace [%s]: POD UPDATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+			} else if event.Doc.Action == "deleted" {
+				klog.Infof("⚪️🔴 NEWS FROM Namespace [%s]: POD DELETED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
 			}
 		}
 	}
@@ -149,28 +146,28 @@ func watch_for_events(namespace string, otherNamespace string) {
 func main() {
 
 	kubeConfig := os.Getenv("KUBECONFIG")
-	// var get_ns = os.Getenv("NAMESPACE_TO_WATCH")
-	// var get_other_namespace_to_retrieve_data_from = os.Getenv("OTHER_NAMESPACE_TO_WATCH")
 
 	var namespace_to_watch string
 	var other_namespace_to_accept string
 
-	value1, present1 := os.LookupEnv("OTHER_NAMESPACE_TO_WATCH")
+	value1, present1 := os.LookupEnv("NAMESPACE_TO_WATCH")
+
 	if present1 && value1 != "" {
-		other_namespace_to_accept = value1
-	} else {
-		other_namespace_to_accept = "default"
-		fmt.Println("No \"OTHER_NAMESPACE_TO_WATCH\" set, hence ready to accept any incoming streams from the \"" + other_namespace_to_accept + "\" namespace Started.... ")
-
-	}
-
-	value2, present2 := os.LookupEnv("NAMESPACE_TO_WATCH")
-	if present2 && value2 != "" {
-		namespace_to_watch = value2
+		namespace_to_watch = value1
+		fmt.Printf("\nMonitoring the Namespace '%s' started...", namespace_to_watch)
 	} else {
 		namespace_to_watch = "default"
-		fmt.Println("No \"NAMESPACE_TO_WATCH\" set, hence watching the events from the \"" + namespace_to_watch + "\" namespace Started.... ")
+		fmt.Printf("\nNo \"NAMESPACE_TO_WATCH\" set, hence watching the events from the '%s' namespace Started.... \n", namespace_to_watch)
+	}
 
+	value2, present2 := os.LookupEnv("other_namespace_to_watch")
+
+	if present2 && value2 != "" {
+		other_namespace_to_accept = value2
+		fmt.Printf("\nListening for the events from the Namespace '%s' started...\n\n", other_namespace_to_accept)
+	} else {
+		other_namespace_to_accept = "default"
+		fmt.Printf("\nNo \"other_namespace_to_watch\" set, hence ready to accept any incoming streams from the '%s' namespace Started.... \n", other_namespace_to_accept)
 	}
 
 	var clusterConfig *rest.Config
@@ -282,10 +279,10 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 			old_pod_container_images = append(old_pod_container_images, container.Image)
 		}
 
-		klog.Infof(
-			"🟠 POD UPDATED. %s/%s %s",
-			newPod.Namespace, newPod.Name, newPod.Status.Phase,
-		)
+		// klog.Infof(
+		// 	"🟠 POD UPDATED. %s/%s %s",
+		// 	newPod.Namespace, newPod.Name, newPod.Status.Phase,
+		// )
 
 		var new_pod_container_count = 0
 		var new_pod_containers []string
@@ -298,9 +295,9 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 		}
 
 		old_containers_and_images := [][]string{old_pod_containers, old_pod_containers}
-		new_containers_and_images := [][]string{new_pod_containers, new_pod_containers}
+		// new_containers_and_images := [][]string{new_pod_containers, new_pod_containers}
 		mongodb_action(oldPod.Namespace, oldPod.Name, old_pod_container_count, old_containers_and_images, shared_events, "updated")
-		mongodb_action(oldPod.Namespace, newPod.Name, new_pod_container_count, new_containers_and_images, shared_events, "updated")
+		// mongodb_action(oldPod.Namespace, newPod.Name, new_pod_container_count, new_containers_and_images, shared_events, "updated")
 
 	}
 

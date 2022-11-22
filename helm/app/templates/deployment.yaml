@@ -26,7 +26,7 @@ spec:
         env:
         - name: NAMESPACE_TO_WATCH
           value: "{{ .Values.common_name }}"
-        - name: OTHER_NAMESPACE_TO_WATCH
+        - name: other_namespace_to_watch
           value: "{{ .Values.other_namespace_to_watch }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         name: {{ .Values.common_name }}

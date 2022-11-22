@@ -1,7 +1,7 @@
 FROM golang:1.19.3-alpine AS BuildStage
 
 ARG NAMESPACE_TO_WATCH
-ARG OTHER_NAMESPACE_TO_WATCH
+ARG other_namespace_to_watch
 ARG KUBECONFIG
 WORKDIR /ng
 
@@ -16,7 +16,7 @@ WORKDIR /
 COPY --from=BuildStage /app /app
 
 ENV NAMESPACE_TO_WATCH=${NAMESPACE_TO_WATCH:-default}
-ENV OTHER_NAMESPACE_TO_WATCH=${OTHER_NAMESPACE_TO_WATCH:-default}
+ENV other_namespace_to_watch=${other_namespace_to_watch:-default}
 ENV KUBECONFIG=${KUBECONFIG}
 
 ENTRYPOINT ["/app"]
