@@ -24,8 +24,6 @@ spec:
       containers:
       - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         env:
-        - name: MONGO_SERVICE_HOSTNAME
-          value: "{{ .Values.deployment.env_mongo | default "service-mongo" }}"
         - name: NAMESPACE_TO_WATCH
           value: "{{ .Values.common_name }}"
         - name: OTHER_NAMESPACE_TO_WATCH

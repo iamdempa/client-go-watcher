@@ -22,11 +22,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// Connection URI
-const mongo_uri = "mongodb://app1"
-
-// const mongo_uri = "mongodb://localhost:27017/?replicaSet=myReplicaSet&authSource=admin"
-
 const mongo_db = "ng-db"
 
 const added_collection = "app1-added-pods"
@@ -38,6 +33,18 @@ const shared_events = "shared_events"
 var mongoConnection = mongodb_connection()
 
 func mongodb_connection() *mongo.Client {
+
+	var mongo_host = ""
+	value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
+	if present && value != "" {
+		mongo_host = value
+	} else {
+		mongo_host = "app1"
+	}
+
+	// Connection URI
+	var mongo_uri = "mongodb://" + mongo_host
+
 	// Set client options
 	clientOptions := options.Client().ApplyURI(mongo_uri)
 

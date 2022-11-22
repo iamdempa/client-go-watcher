@@ -6,7 +6,7 @@ helm install ng-mongo helm/app --namespace ng-mongo --create-namespace
 
     # a.) Then initialize the replicaset 
     kubectl exec -it mongo-0 mongosh
-    rs.initiate({_id: "rs0",members: [{_id: 0, host: "localhost"}]})
+    rs.initiate({_id: "rs0",members: [{_id: 0, host: "mongo"}]})
 
     # b.) Check the logs mongodb logs 
     kubectl logs -f mongo-0 -c mongo -n ng-mongo

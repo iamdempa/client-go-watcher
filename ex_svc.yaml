@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: app1
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: mongo.ng-mongo.svc.cluster.local
+  ports:
+  - port: 27017

@@ -3,14 +3,14 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-common_name: app1
-other_namespace_to_watch: app2
+common_name: app2
+other_namespace_to_watch: app1
 
 image:
   repository: 19950818/ng-voice
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v1"
+  tag: "v9"
 
 deployment:
   notmonitor: notmonitor
@@ -24,9 +24,6 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
-
-
-
 
 service:
   type: ExternalName

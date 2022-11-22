@@ -4,6 +4,6 @@ metadata:
   name: {{ .Values.common_name }}
   namespace: {{ .Release.Namespace }}
 rules:
-  - apiGroups: ["", "apps/v1"]
-    resources: ["pods", "deployments"]
+  - apiGroups: ["", "apps/v1", "v1"]
+    resources: ["pods", "deployments", "services"]
     verbs: ["get", "watch", "list"]
