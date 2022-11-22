@@ -274,30 +274,21 @@ func onUpdate(oldObj interface{}, newObj interface{}) {
 		var old_pod_container_images []string
 		for _, container := range oldPod.Spec.Containers {
 			old_pod_container_count++
-			// fmt.Println(container.Image)
 			old_pod_containers = append(old_pod_containers, container.Name)
 			old_pod_container_images = append(old_pod_container_images, container.Image)
 		}
-
-		// klog.Infof(
-		// 	"🟠 POD UPDATED. %s/%s %s",
-		// 	newPod.Namespace, newPod.Name, newPod.Status.Phase,
-		// )
 
 		var new_pod_container_count = 0
 		var new_pod_containers []string
 		var new_pod_container_images []string
 		for _, container := range newPod.Spec.Containers {
 			new_pod_container_count++
-			// fmt.Println(container.Image)
 			new_pod_containers = append(new_pod_containers, container.Name)
 			new_pod_containers = append(new_pod_container_images, container.Image)
 		}
 
 		old_containers_and_images := [][]string{old_pod_containers, old_pod_containers}
-		// new_containers_and_images := [][]string{new_pod_containers, new_pod_containers}
 		mongodb_action(oldPod.Namespace, oldPod.Name, old_pod_container_count, old_containers_and_images, shared_events, "updated")
-		// mongodb_action(oldPod.Namespace, newPod.Name, new_pod_container_count, new_containers_and_images, shared_events, "updated")
 
 	}
 
