@@ -75,6 +75,72 @@ Then check the logs app1 logs
 kubectl logs -f <POD-NAME> -n app2
 ```
 
+# How to Test the Application Funcationality?
+
+1. Fire up your favourite terminal and Log the application logs of the both pods in both namesaces
+
+```
+kubectl logs -f <app1-POD-NAME> -n app1
+
+kubectl logs -f <app2-POD-NAME> -n app2
+```
+
+2. Create a new deployment in either `app1` namespace or `app2` namespace
+
+```
+kubectl create deployment redis --image=redis --replicas=1 -n app1
+```
+
+And monitor for the log outputs in both apps 
+
+3. Edit the deployment and add a new container
+
+```
+kubectl edit deploy -redis -n app1
+
+...
+      containers:
+      - image: redis
+        name: redis
+
+     # newly added container
+      - image: nginx:alpine 
+        imagePullPolicy: Always
+        name: nginx
+...
+```
+
+Save it and for the log outputs in both apps.
+
+This will also triger the delete action and you can see it too. Or you can even try deleting the redis pods and see.
+
+
+4. Change the existing Image of the redis deployment
+
+```
+kubectl edit deploy -redis -n app1
+
+...
+      containers:
+        # change image from 'redis:latest' to 'redis:alpine '
+      - image: redis:alpine 
+        name: redis
+
+      - image: nginx:alpine 
+        imagePullPolicy: Always
+        name: nginx
+...
+```
+
+
+Save it and for the log outputs in both apps.
+
+Each of these actions are saved in the MongoDB separate columns and with the right mongodb commands, you can retrive the followings;
+
+- a) All pod names of pods running in both the namespaces
+- b) Number of containers running in each pod
+- c) Images of each running container in each pod
+
 
 # Test Suite
 
