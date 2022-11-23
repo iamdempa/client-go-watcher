@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
+	"strconv"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -24,10 +27,9 @@ import (
 
 const mongo_db = "ng-db"
 
-const added_collection = "app1-added-pods"
-const updated_collection = "app1-updated-pods"
-const deleted_collection = "app1-deleted-pods"
-const shared_events = "shared_events"
+const added_collection = "added-pods"
+const updated_collection = "updated-pods"
+const deleted_collection = "deleted-pods"
 
 // re-use the same connection without creating new one everytime
 var mongoConnection = mongodb_connection()
@@ -68,7 +70,7 @@ func mongodb_connection() *mongo.Client {
 	return client
 }
 
-// Function to update the mongodb
+// Function to add and delete the mongodb
 func mongodb_action(namespace string, pod_name string, container_count int, containers_and_images [][]string, collection string, action string) {
 
 	coll := mongoConnection.Database(mongo_db).Collection(collection)
@@ -78,6 +80,31 @@ func mongodb_action(namespace string, pod_name string, container_count int, cont
 	_, err := coll.InsertOne(context.TODO(), doc)
 	if err != nil {
 		panic(err)
+	}
+
+}
+
+// Function update deployment the mongodb
+func mongodb_action_update(namespace string, pod_name string, param1 string, param2 string, action string) {
+
+	coll := mongoConnection.Database(mongo_db).Collection(updated_collection)
+
+	if action == "container_count_action" {
+		doc := bson.D{{"namespace", namespace}, {"deployment_name", pod_name}, {"old_container_count", param1}, {"new_container_count", param2}, {"action", action}}
+
+		_, err := coll.InsertOne(context.TODO(), doc)
+		if err != nil {
+			panic(err)
+		}
+
+	} else if action == "image_tag_action" {
+		doc := bson.D{{"namespace", namespace}, {"deployment_name", pod_name}, {"old_image_tag", param1}, {"new_image_tag", param2}, {"action", action}}
+
+		_, err := coll.InsertOne(context.TODO(), doc)
+		if err != nil {
+			panic(err)
+		}
+
 	}
 
 }
@@ -93,11 +120,117 @@ func mongodb_delete(pod_name string, collection string) {
 	}
 
 }
+func watch_for_updated_events(namespace string, otherNamespace string) {
+
+	// for updated-pods - image tag
+	type UpdatedDocumentImageTag struct {
+		ID          primitive.ObjectID `bson:"_id"`
+		EventType   string             `bson:"operationType"`
+		Namespace   string             `bson:"namespace"`
+		Deployment  string             `bson:"deployment_name"`
+		OldImageTag string             `bson:"old_image_tag"`
+		NewImageTag string             `bson:"new_image_tag"`
+		Action      string             `bson:"action"`
+	}
+	// for updated-pods - container count
+	type UpdatedDocumentContainerCount struct {
+		ID                primitive.ObjectID `bson:"_id"`
+		EventType         string             `bson:"operationType"`
+		Namespace         string             `bson:"namespace"`
+		Deployment        string             `bson:"deployment_name"`
+		OldContainerCount string             `bson:"old_container_count"`
+		NewContainerCount string             `bson:"new_container_count"`
+		Action            string             `bson:"action"`
+	}
+
+	var eventUpdateIT struct {
+		UpdatedDocIT UpdatedDocumentImageTag `bson:"fullDocument"`
+	}
+	var eventUpdateCC struct {
+		UpdatedDocCC UpdatedDocumentContainerCount `bson:"fullDocument"`
+	}
+
+	// open a change stream with an empty pipeline parameter - for updated-pods
+	updated_coll := mongoConnection.Database(mongo_db).Collection(updated_collection)
+
+	updatedChangeStream, err := updated_coll.Watch(context.TODO(), mongo.Pipeline{})
+	if err != nil {
+		panic(err)
+
+	}
+	defer updatedChangeStream.Close(context.TODO())
+
+	for updatedChangeStream.Next(context.TODO()) {
+
+		if err := updatedChangeStream.Decode(&eventUpdateIT); err != nil {
+			fmt.Printf("Failed to decode event: %v", err)
+			continue
+		}
+		if err := updatedChangeStream.Decode(&eventUpdateCC); err != nil {
+			fmt.Printf("Failed to decode event: %v", err)
+			continue
+		}
+
+		if eventUpdateIT.UpdatedDocIT.Namespace != namespace {
+
+			if updatedChangeStream.Current.Lookup("operationType").String() == "\"insert\"" && eventUpdateIT.UpdatedDocIT.Action == "image_tag_action" {
+				klog.Infof("⚪️🟠 NEWS FROM Namespace [%s]: Image tag of the DEPLOYMENT '%s' changed from '%s' to '%s'\n\n", eventUpdateIT.UpdatedDocIT.Namespace, eventUpdateIT.UpdatedDocIT.Deployment, eventUpdateIT.UpdatedDocIT.OldImageTag, eventUpdateIT.UpdatedDocIT.NewImageTag)
+			}
+		}
+
+		if eventUpdateCC.UpdatedDocCC.Namespace != namespace {
+
+			if updatedChangeStream.Current.Lookup("operationType").String() == "\"insert\"" && eventUpdateCC.UpdatedDocCC.Action == "container_count_action" {
+				klog.Infof("⚪️🟠 NEWS FROM Namespace [%s]: A new Container is Added to the DEPLOYMENT '%s' and container count changed from '%s' to '%s'\n\n", eventUpdateCC.UpdatedDocCC.Namespace, eventUpdateCC.UpdatedDocCC.Deployment, eventUpdateCC.UpdatedDocCC.OldContainerCount, eventUpdateCC.UpdatedDocCC.NewContainerCount)
+			}
+		}
+	}
+
+}
+
+func watch_for_deleted_events(namespace string, otherNamespace string) {
+	// for deleted-pods
+	type DeletedDocument struct {
+		ID        primitive.ObjectID `bson:"_id"`
+		EventType string             `bson:"operationType"`
+		Namespace string             `bson:"namespace"`
+		PodName   string             `bson:"pod_name"`
+		Action    string             `bson:"action"`
+	}
+	var eventDelete struct {
+		DeletedDoc DeletedDocument `bson:"fullDocument"`
+	}
+
+	// open a change stream with an empty pipeline parameter - for added-pods
+	deleted_coll := mongoConnection.Database(mongo_db).Collection(deleted_collection)
+	deletedChangeStream, err := deleted_coll.Watch(context.TODO(), mongo.Pipeline{})
+	if err != nil {
+		panic(err)
+	}
+	defer deletedChangeStream.Close(context.TODO())
+	// iterate over the cursor to print the change stream events
+	for deletedChangeStream.Next(context.TODO()) {
+
+		if err := deletedChangeStream.Decode(&eventDelete); err != nil {
+			fmt.Printf("Failed to decode event: %v", err)
+			continue
+		}
+
+		if eventDelete.DeletedDoc.Namespace != namespace {
+
+			if deletedChangeStream.Current.Lookup("operationType").String() == "\"insert\"" && eventDelete.DeletedDoc.Action == "deleted" {
+				klog.Infof("⚪️🔴 NEWS FROM Namespace [%s]: POD DELETED: %s/%s\n\n", eventDelete.DeletedDoc.Namespace, eventDelete.DeletedDoc.Namespace, eventDelete.DeletedDoc.PodName)
+			}
+		}
+	}
+
+}
 
 // Function to watcbh for mongodb change streams
 func watch_for_events(namespace string, otherNamespace string) {
 
-	type YourDocument struct {
+	// for added-pods
+	type AddedDocument struct {
 		ID                  primitive.ObjectID `bson:"_id"`
 		EventType           string             `bson:"operationType"`
 		Namespace           string             `bson:"namespace"`
@@ -107,35 +240,32 @@ func watch_for_events(namespace string, otherNamespace string) {
 		Action              string             `bson:"action"`
 	}
 
-	var event struct {
-		Doc YourDocument `bson:"fullDocument"`
+	var eventAdded struct {
+		AddedDoc AddedDocument `bson:"fullDocument"`
 	}
 
-	// open a change stream with an empty pipeline parameter
-	coll := mongoConnection.Database(mongo_db).Collection(shared_events)
-	changeStream, err := coll.Watch(context.TODO(), mongo.Pipeline{})
+	// open a change stream with an empty pipeline parameter - for added-pods
+	added_coll := mongoConnection.Database(mongo_db).Collection(added_collection)
+
+	addedChangeStream, err := added_coll.Watch(context.TODO(), mongo.Pipeline{})
 	if err != nil {
 		panic(err)
 	}
-	defer changeStream.Close(context.TODO())
-	// iterate over the cursor to print the change stream events
 
-	for changeStream.Next(context.TODO()) {
-		// fmt.Println(changeStream.Current)
+	defer addedChangeStream.Close(context.TODO())
 
-		if err := changeStream.Decode(&event); err != nil {
+	for addedChangeStream.Next(context.TODO()) {
+		// fmt.Println(addedChangeStream.Current)
+
+		if err := addedChangeStream.Decode(&eventAdded); err != nil {
 			fmt.Printf("Failed to decode event: %v", err)
 			continue
 		}
 
-		if event.Doc.Namespace != namespace {
+		if eventAdded.AddedDoc.Namespace != namespace {
 
-			if changeStream.Current.Lookup("operationType").String() == "\"insert\"" && event.Doc.Action == "added" {
-				klog.Infof("⚪️🟢 NEWS FROM Namespace [%s]: POD CREATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
-			} else if event.Doc.Action == "updated" {
-				klog.Infof("⚪️🟠 NEWS FROM Namespace [%s]: POD UPDATED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
-			} else if event.Doc.Action == "deleted" {
-				klog.Infof("⚪️🔴 NEWS FROM Namespace [%s]: POD DELETED: %s/%s\n\n", event.Doc.Namespace, event.Doc.Namespace, event.Doc.PodName)
+			if addedChangeStream.Current.Lookup("operationType").String() == "\"insert\"" && eventAdded.AddedDoc.Action == "added" {
+				klog.Infof("⚪️🟢 NEWS FROM Namespace [%s]: POD CREATED: %s/%s\n\n", eventAdded.AddedDoc.Namespace, eventAdded.AddedDoc.Namespace, eventAdded.AddedDoc.PodName)
 			}
 		}
 	}
@@ -197,6 +327,8 @@ func main() {
 	factory := informers.NewSharedInformerFactoryWithOptions(clientSet, 1*time.Hour, informers.WithNamespace(namespace_to_watch))
 	podInformer := factory.Core().V1().Pods().Informer()
 
+	deploymentInfomer := factory.Apps().V1().Deployments().Informer()
+
 	defer runtime.HandleCrash()
 
 	// start informer ->
@@ -208,13 +340,26 @@ func main() {
 		return
 	}
 
+	// start to sync and call list
+	if !cache.WaitForCacheSync(stopper, deploymentInfomer.HasSynced) {
+		runtime.HandleError(fmt.Errorf("Timed out waiting for caches to sync"))
+		return
+	}
+
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    onAdd, // register add eventhandler
-		UpdateFunc: onUpdate,
+		AddFunc: onAdd, // register add eventhandler
+		// UpdateFunc: onUpdate,
 		DeleteFunc: onDelete,
 	})
 
-	watch_for_events(namespace_to_watch, other_namespace_to_accept)
+	deploymentInfomer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+
+		UpdateFunc: onUpdateDeployment,
+	})
+
+	go watch_for_events(namespace_to_watch, other_namespace_to_accept)
+	go watch_for_updated_events(namespace_to_watch, other_namespace_to_accept)
+	go watch_for_deleted_events(namespace_to_watch, other_namespace_to_accept)
 
 	// block the main go routine from exiting
 	<-stopper
@@ -245,51 +390,9 @@ func onAdd(obj interface{}) {
 		}
 
 		containers_and_images := [][]string{containers, container_images}
-		mongodb_action(pod.Namespace, pod.Name, container_count, containers_and_images, shared_events, "added")
+		mongodb_action(pod.Namespace, pod.Name, container_count, containers_and_images, added_collection, "added")
 		doNotMonitor = false
 		containers = nil
-	}
-
-}
-
-func onUpdate(oldObj interface{}, newObj interface{}) {
-	oldPod := oldObj.(*corev1.Pod)
-	newPod := newObj.(*corev1.Pod)
-
-	var doNotMonitor bool
-	for _, label := range newPod.GetLabels() {
-		if label == "notmonitor" {
-			doNotMonitor = true
-		}
-	}
-
-	if !doNotMonitor {
-		klog.Infof(
-			"🟠 POD UPDATED. %s/%s %s",
-			oldPod.Namespace, oldPod.Name, oldPod.Status.Phase,
-		)
-
-		var old_pod_container_count = 0
-		var old_pod_containers []string
-		var old_pod_container_images []string
-		for _, container := range oldPod.Spec.Containers {
-			old_pod_container_count++
-			old_pod_containers = append(old_pod_containers, container.Name)
-			old_pod_container_images = append(old_pod_container_images, container.Image)
-		}
-
-		var new_pod_container_count = 0
-		var new_pod_containers []string
-		var new_pod_container_images []string
-		for _, container := range newPod.Spec.Containers {
-			new_pod_container_count++
-			new_pod_containers = append(new_pod_containers, container.Name)
-			new_pod_containers = append(new_pod_container_images, container.Image)
-		}
-
-		old_containers_and_images := [][]string{old_pod_containers, old_pod_containers}
-		mongodb_action(oldPod.Namespace, oldPod.Name, old_pod_container_count, old_containers_and_images, shared_events, "updated")
-
 	}
 
 }
@@ -321,7 +424,70 @@ func onDelete(obj interface{}) {
 
 		containers_and_images := [][]string{containers, container_images}
 
-		mongodb_action(pod.Namespace, pod.Name, container_count, containers_and_images, shared_events, "deleted")
+		// add to the deleted-pods collection
+		mongodb_action(pod.Namespace, pod.Name, container_count, containers_and_images, deleted_collection, "deleted")
+
+		// and remove from the added collection
+		mongodb_delete(pod.Name, added_collection)
 	}
 
+}
+
+func onUpdateDeployment(oldObj interface{}, newObj interface{}) {
+	oldDeployment := oldObj.(*appsv1.Deployment)
+	newDeployment := newObj.(*appsv1.Deployment)
+
+	var doNotMonitor bool
+	for _, label := range oldDeployment.GetLabels() {
+		if label == "notmonitor" {
+			doNotMonitor = true
+		}
+	}
+
+	if !doNotMonitor {
+
+		var old_pod_container_images []string
+		var new_pod_container_images []string
+
+		for _, old := range oldDeployment.Spec.Template.Spec.Containers {
+			old_pod_container_images = append(old_pod_container_images, old.Image)
+		}
+
+		for _, new := range newDeployment.Spec.Template.Spec.Containers {
+			new_pod_container_images = append(new_pod_container_images, new.Image)
+		}
+
+		var old_pod_container_count = 0
+		var new_pod_container_count = 0
+
+		for _, container := range oldDeployment.Spec.Template.Spec.Containers {
+			old_pod_container_count++
+			_ = container
+		}
+
+		for _, container := range newDeployment.Spec.Template.Spec.Containers {
+			new_pod_container_count++
+			_ = container
+		}
+
+		for i := 0; i < old_pod_container_count; i++ {
+			if old_pod_container_count != new_pod_container_count {
+				klog.Infof("🟠 A new Container is Added to the DEPLOYMENT '%s' and container count changed from '%d' to '%d'\n", oldDeployment.Name, old_pod_container_count, new_pod_container_count)
+				mongodb_action_update(oldDeployment.Namespace, oldDeployment.Name, strconv.Itoa(old_pod_container_count), strconv.Itoa(new_pod_container_count), "container_count_action")
+				break
+			}
+		}
+
+		if !reflect.DeepEqual(old_pod_container_images, new_pod_container_images) {
+			for i, v := range old_pod_container_images {
+				if v != new_pod_container_images[i] && old_pod_container_count == new_pod_container_count {
+					klog.Infof("🟠 Image tag of the DEPLOYMENT '%s' changed from '%s' to '%s'\n", oldDeployment.Name, v, new_pod_container_images[i])
+					mongodb_action_update(oldDeployment.Namespace, oldDeployment.Name, v, new_pod_container_images[i], "image_tag_action")
+
+				}
+
+			}
+		}
+
+	}
 }

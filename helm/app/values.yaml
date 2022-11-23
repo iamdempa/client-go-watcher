@@ -10,7 +10,7 @@ image:
   repository: 19950818/ng-voice
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v11"
+  tag: "v1"
 
 deployment:
   notmonitor: notmonitor
