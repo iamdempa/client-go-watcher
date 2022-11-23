@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"reflect"
 	"testing"
 
@@ -11,17 +12,19 @@ import (
 )
 
 func TestMongoClient(t *testing.T) {
-	// var mongo_host = ""
-	// value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
-	// if present && value != "" {
-	// 	mongo_host = value
-	// } else {
-	// 	mongo_host = "app1"
-	// }
+	var mongo_host = ""
+	value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
+	if present && value != "" {
+		mongo_host = value
+	} else {
+		mongo_host = "app1"
+	}
 
 	// Connection URI
-	// var mongo_uri = "mongodb://" + mongo_host
-	var mongo_uri = "mongodb://localhost:27017"
+	var mongo_uri = "mongodb://" + mongo_host
+
+	// when running tests, you need to have a local mongo cluster running, please specify it below
+	// var mongo_uri = "mongodb://localhost:27017"
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(mongo_uri)
