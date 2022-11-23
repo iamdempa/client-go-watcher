@@ -36,17 +36,19 @@ var mongoConnection = mongodb_connection()
 
 func mongodb_connection() *mongo.Client {
 
-	// var mongo_host = ""
-	// value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
-	// if present && value != "" {
-	// 	mongo_host = value
-	// } else {
-	// 	mongo_host = "app1"
-	// }
+	var mongo_host = ""
+	value, present := os.LookupEnv("NAMESPACE_TO_WATCH")
+	if present && value != "" {
+		mongo_host = value
+	} else {
+		mongo_host = "app1"
+	}
 
 	// Connection URI
-	// var mongo_uri = "mongodb://" + mongo_host
-	var mongo_uri = "mongodb://localhost:27017"
+	var mongo_uri = "mongodb://" + mongo_host
+
+	// when running tests, you need to have a local mongo cluster running, please specify it below
+	// var mongo_uri = "mongodb://localhost:27017"
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(mongo_uri)
@@ -71,7 +73,7 @@ func mongodb_connection() *mongo.Client {
 }
 
 // Function to add and delete the mongodb
-func mongodb_action(namespace string, pod_name string, container_count int, containers_and_images [][]string, collection string, action string) {
+func mongodb_action(namespace string, pod_name string, container_count int, containers_and_images [][]string, collection string, action string) string {
 
 	coll := mongoConnection.Database(mongo_db).Collection(collection)
 
@@ -82,10 +84,12 @@ func mongodb_action(namespace string, pod_name string, container_count int, cont
 		panic(err)
 	}
 
+	return ("Insert Action Successful")
+
 }
 
 // Function update deployment the mongodb
-func mongodb_action_update(namespace string, pod_name string, param1 string, param2 string, action string) {
+func mongodb_action_update(namespace string, pod_name string, param1 string, param2 string, action string) string {
 
 	coll := mongoConnection.Database(mongo_db).Collection(updated_collection)
 
@@ -106,10 +110,10 @@ func mongodb_action_update(namespace string, pod_name string, param1 string, par
 		}
 
 	}
-
+	return ("Update Action Successful")
 }
 
-func mongodb_delete(pod_name string, collection string) {
+func mongodb_delete(pod_name string, collection string) string {
 
 	coll := mongoConnection.Database(mongo_db).Collection(collection)
 	filter := bson.D{{"pod_name", bson.D{{"$eq", pod_name}}}}
@@ -118,6 +122,8 @@ func mongodb_delete(pod_name string, collection string) {
 	if err != nil {
 		panic(err)
 	}
+
+	return ("Delete Action Successful")
 
 }
 func watch_for_updated_events(namespace string, otherNamespace string) {

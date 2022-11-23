@@ -27,11 +27,12 @@ spec:
           - rs0
           - "--bind_ip_all"
 
-      # - name: mongo-sidecar
-      #   image: morphy/k8s-mongo-sidecar
-      #   imagePullPolicy: {{ .Values.image.pullPolicy }}
-      #   env:
-      #     - name: KUBERNETES_POD_LABELS
-      #       value: "role=mongo,environment=test"
-      #     - name: KUBERNETES_SERVICE_NAME
-      #       value: "{{ .Values.selector }}"
+      #   volumeMounts:
+      #   - name: mongo-storage
+      #     mountPath: /data/db          
+
+      # volumes:
+      # - name: mongo-storage
+      #   hostPath:
+      #     path: /data
+      #     type: Directory

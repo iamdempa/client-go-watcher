@@ -9,11 +9,15 @@ Before running this application, please make sure following tools are installed 
 - `minikube` - version: v1.26.0
 - `helm` - version: v3.9.0
 
-# Deployment Architecture
+# Architecture Diagram
 
-
+![Architecture Diagram](architecture_diagram.png "Architecture Diagram")
 
 ## 1. Deploy the `mongodb `
+
+We are using a simple `mongodb` StatefulSet so our applications can communicate with each other with the [ChangeStreams](https://www.mongodb.com/docs/manual/changeStreams/)
+
+> Note: And we haven't set any volumes for persistent of data as well as no passwords just to ease the things out. But it is recommended to use the best practices like this for an actual scenario. 
 
 ```
 helm install ng-mongo helm/mongo --namespace ng-mongo --create-namespace
@@ -69,4 +73,20 @@ helm install app2 helm/app --set common_name=app2 \
 Then check the logs app1 logs 
 ```
 kubectl logs -f <POD-NAME> -n app2
+```
+
+
+# Test Suite
+
+To run the test cases;
+
+```
+go test -v
+```
+
+> Note: When running tests, you need to have a local mongo cluster running, please specify it below, or proxy the running statefulset as below and update the connection URI accordingly
+(eg: `var mongo_uri = "mongodb://localhost:27017"`)
+
+```
+kubectl port-forward mongo-0 27017:27017 -n ng-mongo
 ```
